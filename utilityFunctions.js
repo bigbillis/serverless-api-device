@@ -1,0 +1,14 @@
+
+// Create a response
+module.exports.response = (statusCode, message) => {
+    return {
+        statusCode: statusCode,
+        body: JSON.stringify(message)
+    };
+}
+
+module.exports.sortByDate = (a, b) => {
+    if (a.createdAt > b.createdAt) {
+        return -1;
+    } else return 1;
+}

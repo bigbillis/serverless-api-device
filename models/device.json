@@ -1,0 +1,32 @@
+{
+    "title": "deviceModel",
+    "type": "object",
+    "properties": {
+        "sn": {
+            "type": "string",
+            "minLength": 9
+        },
+        "model_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "device_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "mac_address": {
+            "type": "string",
+            "minLength": 1
+        },
+        "user_id": {
+            "type": "string",
+            "minLength": 1
+        }
+    },
+    "required": [
+        "sn",
+        "model_name",
+        "device_name",
+        "mac_address"
+    ]
+}

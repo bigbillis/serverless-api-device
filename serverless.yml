@@ -1,0 +1,137 @@
+service: just-codding-serverless
+custom:
+  # We define table names in enviromental variable settings
+  settings:
+    USERS_TABLE: just-codding-users
+    DEVICES_TABLE: just-codding-devices
+  documentation:
+    api:
+      info:
+        version: '1.0.0'
+        title: Just Codding API
+        description: This is our Just Codding API
+    # We define the model schema of the JSON payload in the POST request for device. If the request does not contain the required attributes, it is rejected by API Gateway.
+    models:
+      - name: deviceModel
+        contentType: "application/json"
+        schema: ${file(models/device.json)}
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: eu-central-1
+  # We define enviromental variable called settings, which we input the table name.
+  environment: ${self:custom.settings}
+  iamRoleStatements:
+  # We set permissions for all the lambda functions, they should be able to interact with DynamoDB users and devices table
+   - Effect: "Allow"
+     Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+     Resource:
+      - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.settings.USERS_TABLE}"
+      - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.settings.DEVICES_TABLE}"
+functions:
+  createUser:
+    handler: handler-users.createUser  # we define the create user function, we will go to Cognito console to trigger this function when a user registers
+  createDevice:
+    handler: handler-devices.createDevice  # We define funtion handler to be triggered when the following http event occurs
+    events:
+    - http:
+        path: /device/
+        method: post
+        authorizer:  # We define a Cognito user pool as authorizer, the token should be validated in API Gateway before lambda is called. The lambda can get username from Cognito authorizer object which is the event.requestContext.authorizer.
+            arn: arn:aws:cognito-idp:eu-central-1:400727838093:userpool/eu-central-1_Ki0uIAbjj       
+        #  We tell API gateway to use the request model we defined for device, for the request validation
+        reqValidatorName: 'xMyRequestValidator'
+        documentation:
+          summary: "Post a device"
+          description: "Post a device"
+          requestModels:
+            application/json: deviceModel
+  getAllDevices:
+    handler: handler-devices.getAllDevices
+    events:
+    - http:
+        path: /device
+        method: get
+        authorizer:
+            arn: arn:aws:cognito-idp:eu-central-1:400727838093:userpool/eu-central-1_Ki0uIAbjj       
+  getDevice:
+    handler: handler-devices.getDevice
+    events:
+    - http:
+        path: /device/{sn}
+        method: get
+        authorizer:
+            arn: arn:aws:cognito-idp:eu-central-1:400727838093:userpool/eu-central-1_Ki0uIAbjj         
+  updateDevice:
+    handler: handler-devices.updateDevice
+    events:
+    - http:
+        path: /device/{sn}
+        method: put
+        authorizer:
+            arn: arn:aws:cognito-idp:eu-central-1:400727838093:userpool/eu-central-1_Ki0uIAbjj       
+  deleteDevice:
+    handler: handler-devices.deleteDevice
+    events:
+    - http:
+        path: /device/{sn}
+        method: delete
+        authorizer:
+            arn: arn:aws:cognito-idp:eu-central-1:400727838093:userpool/eu-central-1_Ki0uIAbjj       
+resources:
+  Resources:
+    # We define our API Gateway resource and the name of our API
+    ApiGatewayRestApi:
+      Type: AWS::ApiGateway::RestApi
+      Properties:
+        Name: device-api
+    # We makes use of the serverless-reqvalidator-plugin package, and we make use of AWS::ApiGateway::RequestValidator to validate the request body
+    xMyRequestValidator:  
+         Type: "AWS::ApiGateway::RequestValidator"
+         Properties:
+           Name: 'xMyRequestValidator'
+           RestApiId: 
+             Ref: ApiGatewayRestApi
+           ValidateRequestBody: true
+   #We define our DynamoDB tables for the registered users and for the devices. The user's table has primary key ID and the device's table has primary key User ID and sort key Serial Number (sn)     
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+        KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.settings.USERS_TABLE}      
+    DevicesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: "user_id"
+          AttributeType: "S"           
+        - AttributeName: "sn"
+          AttributeType: "S"
+        KeySchema:
+          - AttributeName: "user_id"
+            KeyType: "HASH"
+          - AttributeName: "sn"
+            KeyType: "RANGE"           
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.settings.DEVICES_TABLE}               
+plugins:
+  - serverless-offline
+  - serverless-reqvalidator-plugin
+  - serverless-aws-documentation
